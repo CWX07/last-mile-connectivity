@@ -1,0 +1,89 @@
+<html>
+  <head>
+    <title>KL Transportation System</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  </head>
+
+  <body>
+    <main class="app-shell">
+      <header class="controls">
+        <div class="field">
+          <label for="start">Start</label>
+          <input
+            id="start"
+            type="text"
+            placeholder="KL Sentral"
+            autocomplete="off"
+          />
+        </div>
+        <div class="field">
+          <label for="dest">Destination</label>
+          <input
+            id="dest"
+            type="text"
+            placeholder="Masjid Jamek"
+            autocomplete="off"
+          />
+        </div>
+        <button id="routeBtn" type="button">Go</button>
+      </header>
+
+      <div class="layer-controls">
+        <div class="line-toggle">
+          <span>Transit Lines</span>
+          <div id="lineButtons" class="pill-group">
+            <button class="pill" data-route-id="AG">Ampang</button>
+            <button class="pill" data-route-id="KJ">Kelana Jaya</button>
+            <button class="pill" data-route-id="PH">Putra Heights</button>
+            <button class="pill" data-route-id="MRT">Kajang</button>
+            <button class="pill" data-route-id="PYL">Putrajaya</button>
+            <button class="pill" data-route-id="MR">Monorail</button>
+            <button class="pill" data-route-id="BRT">Sunway BRT</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="info" class="info-panel"></div>
+      <div class="map-shell">
+        <div id="map"></div>
+      </div>
+      <section id="insightsPanel" class="insights">
+        <div class="insights__header">
+          <h2>Travel Insights</h2>
+          <span class="insights__badge">AI-assisted</span>
+        </div>
+        <p id="insightsEmpty" class="insights__empty">
+          Plan a route to see live travel tips.
+        </p>
+        <ul id="insightsList" class="hidden"></ul>
+      </section>
+    </main>
+
+    <!-- Core dependencies -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <!-- LAYER 1: Foundation -->
+    <script src="js/map-init.js"></script>
+    <script src="js/station-matching.js"></script>
+    <script src="js/routing.js"></script>
+
+    <!-- LAYER 2: Visualization -->
+    <script src="js/route-display.js"></script>
+    <script src="js/crowd.js"></script>
+
+    <!-- LAYER 3: Input system -->
+    <script src="js/input.js"></script>
+
+    <!-- LAYER 4: Application -->
+    <script src="js/main.js"></script>
+  </body>
+</html>

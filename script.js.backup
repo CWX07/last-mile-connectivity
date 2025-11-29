@@ -1,0 +1,700 @@
+var map = L.map("map").setView([3.139, 101.686], 12);
+
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: "&copy; OpenStreetMap contributors",
+  maxZoom: 19,
+}).addTo(map);
+
+var startInput = document.getElementById("start");
+var destInput = document.getElementById("dest");
+var routeBtn = document.getElementById("routeBtn");
+
+var startMarker = null;
+var destMarker = null;
+var routeLayer = null;
+var stationMarkers = [];
+var routeLayers = []; // Store all route layers (walking routes, transit lines)
+var stations = [];
+
+// Calculate Levenshtein distance for fuzzy matching
+function levenshteinDistance(str1, str2) {
+  var m = str1.length;
+  var n = str2.length;
+  var d = [];
+
+  for (var i = 0; i <= m; i++) {
+    d[i] = [i];
+  }
+  for (var j = 0; j <= n; j++) {
+    d[0][j] = j;
+  }
+
+  for (var j = 1; j <= n; j++) {
+    for (var i = 1; i <= m; i++) {
+      if (str1[i - 1] === str2[j - 1]) {
+        d[i][j] = d[i - 1][j - 1];
+      } else {
+        d[i][j] = Math.min(
+          d[i - 1][j] + 1, // deletion
+          d[i][j - 1] + 1, // insertion
+          d[i - 1][j - 1] + 1 // substitution
+        );
+      }
+    }
+  }
+
+  return d[m][n];
+}
+
+// Calculate similarity score (0-1, higher is better)
+function similarityScore(str1, str2) {
+  var maxLen = Math.max(str1.length, str2.length);
+  if (maxLen === 0) return 1;
+  var distance = levenshteinDistance(str1, str2);
+  return 1 - distance / maxLen;
+}
+
+// Normalize text for matching (remove common words, normalize spaces)
+function normalizeForMatching(text) {
+  return text
+    .toUpperCase()
+    .replace(/\b(MRT|LRT|MONORAIL|BRT|ETS|KOMUTER|STATION|STN)\b/gi, "")
+    .replace(/[^\w\s]/g, " ") // Replace punctuation with spaces
+    .replace(/\s+/g, " ") // Normalize spaces
+    .trim();
+}
+
+// Check if words match (handles abbreviations)
+function wordsMatch(queryWords, stationWords) {
+  if (queryWords.length === 0) return false;
+
+  var matchedWords = 0;
+  for (var i = 0; i < queryWords.length; i++) {
+    var qWord = queryWords[i];
+    if (qWord.length < 2) continue; // Skip single letters
+
+    for (var j = 0; j < stationWords.length; j++) {
+      var sWord = stationWords[j];
+      // Exact word match
+      if (sWord === qWord) {
+        matchedWords++;
+        break;
+      }
+      // Word starts with query (abbreviation)
+      if (sWord.startsWith(qWord) && qWord.length >= 2) {
+        matchedWords++;
+        break;
+      }
+      // Query starts with word (reverse abbreviation)
+      if (qWord.startsWith(sWord) && sWord.length >= 2) {
+        matchedWords++;
+        break;
+      }
+      // Fuzzy word match (allow 1-2 character difference for short words)
+      if (qWord.length >= 3 && sWord.length >= 3) {
+        var wordSim = similarityScore(qWord, sWord);
+        if (wordSim > 0.7) {
+          matchedWords++;
+          break;
+        }
+      }
+    }
+  }
+
+  return matchedWords / queryWords.length; // Return ratio of matched words
+}
+
+function findStationByName(query) {
+  if (stations.length === 0) return null;
+
+  var queryUpper = query.toUpperCase().trim();
+  var bestMatch = null;
+  var bestScore = 0;
+
+  // Normalize query
+  var cleanQuery = normalizeForMatching(query);
+  var queryWords = cleanQuery.split(/\s+/).filter(function (w) {
+    return w.length > 0;
+  });
+
+  stations.forEach(function (station) {
+    var stationName = (station.name || "").toUpperCase().trim();
+    var cleanStationName = normalizeForMatching(stationName);
+    var stationWords = cleanStationName.split(/\s+/).filter(function (w) {
+      return w.length > 0;
+    });
+
+    // 1. Exact match (after normalization)
+    if (cleanStationName === cleanQuery) {
+      if (100 > bestScore) {
+        bestMatch = station;
+        bestScore = 100;
+      }
+      return;
+    }
+
+    // 2. Word-by-word matching (handles abbreviations and partial matches)
+    var wordMatchRatio = wordsMatch(queryWords, stationWords);
+    if (wordMatchRatio > 0) {
+      var score = wordMatchRatio * 90; // Up to 90 points for word matching
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = station;
+      }
+    }
+
+    // 3. Substring matching (one contains the other)
+    if (
+      cleanStationName.includes(cleanQuery) ||
+      cleanQuery.includes(cleanStationName)
+    ) {
+      var lengthRatio =
+        Math.min(cleanStationName.length, cleanQuery.length) /
+        Math.max(cleanStationName.length, cleanQuery.length);
+      var score = lengthRatio * 70; // Up to 70 points
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = station;
+      }
+    }
+
+    // 4. Fuzzy string matching (handles typos)
+    var fuzzyScore = similarityScore(cleanQuery, cleanStationName);
+    if (fuzzyScore > 0.6) {
+      var score = fuzzyScore * 60; // Up to 60 points for fuzzy match
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = station;
+      }
+    }
+
+    // 5. Check original names (before normalization) for exact/contains match
+    if (stationName === queryUpper) {
+      if (95 > bestScore) {
+        bestMatch = station;
+        bestScore = 95;
+      }
+    } else if (
+      stationName.includes(queryUpper) ||
+      queryUpper.includes(stationName)
+    ) {
+      var lengthRatio =
+        Math.min(stationName.length, queryUpper.length) /
+        Math.max(stationName.length, queryUpper.length);
+      var score = lengthRatio * 50;
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = station;
+      }
+    }
+  });
+
+  // Lower threshold for more tolerance (0.3 instead of 0.5)
+  if (bestMatch && bestScore > 30) {
+    return {
+      lat: bestMatch.lat,
+      lng: bestMatch.lng,
+      name: bestMatch.name,
+      station: bestMatch,
+    };
+  }
+
+  return null;
+}
+
+function geocode(query) {
+  // First, try to find a matching station
+  var stationMatch = findStationByName(query);
+  if (stationMatch) {
+    return Promise.resolve(stationMatch);
+  }
+
+  // Fall back to Nominatim geocoding
+  var url =
+    "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" +
+    encodeURIComponent(query);
+  return fetch(url, {
+    headers: { "Accept-Language": "en", "User-Agent": "sdg-xi-demo" },
+  })
+    .then(function (res) {
+      if (!res.ok) throw new Error("Geocode failed");
+      return res.json();
+    })
+    .then(function (results) {
+      if (!results.length) return null;
+      var loc = results[0];
+      return {
+        lat: parseFloat(loc.lat),
+        lng: parseFloat(loc.lon),
+        name: loc.display_name,
+      };
+    });
+}
+
+function distance(lat1, lng1, lat2, lng2) {
+  var R = 6371e3;
+  var φ1 = (lat1 * Math.PI) / 180;
+  var φ2 = (lat2 * Math.PI) / 180;
+  var Δφ = ((lat2 - lat1) * Math.PI) / 180;
+  var Δλ = ((lng2 - lng1) * Math.PI) / 180;
+  var a =
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function findNearestStation(lat, lng) {
+  var nearest = null;
+  var minDist = Infinity;
+  stations.forEach(function (station) {
+    var dist = distance(lat, lng, station.lat, station.lng);
+    if (dist < minDist) {
+      minDist = dist;
+      nearest = station;
+    }
+  });
+  return nearest;
+}
+
+function findPathBetweenStations(startStation, destStation, visitedRoutes) {
+  if (!visitedRoutes) visitedRoutes = new Set();
+
+  if (startStation.id === destStation.id) return [startStation];
+
+  // If same route, find path on that route
+  if (startStation.route_id === destStation.route_id) {
+    var routeStations = stations.filter(function (s) {
+      return s.route_id === startStation.route_id;
+    });
+
+    // Try to sort by ID number if possible (e.g., AG1, AG2, AG3...)
+    routeStations.sort(function (a, b) {
+      var numA = parseInt(a.id.match(/\d+/));
+      var numB = parseInt(b.id.match(/\d+/));
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+      return a.id.localeCompare(b.id);
+    });
+
+    var startIdx = routeStations.findIndex(function (s) {
+      return s.id === startStation.id;
+    });
+    var destIdx = routeStations.findIndex(function (s) {
+      return s.id === destStation.id;
+    });
+    if (startIdx === -1 || destIdx === -1) return null;
+    if (startIdx < destIdx) {
+      return routeStations.slice(startIdx, destIdx + 1);
+    } else {
+      return routeStations.slice(destIdx, startIdx + 1).reverse();
+    }
+  }
+
+  // Prevent infinite loops
+  var routeKey = startStation.route_id + "->" + destStation.route_id;
+  if (visitedRoutes.has(routeKey)) return null;
+  visitedRoutes.add(routeKey);
+
+  // Try direct transfer
+  var transferStations = findTransferPoint(startStation, destStation);
+  if (transferStations) {
+    var path1 = findPathBetweenStations(
+      startStation,
+      transferStations[0],
+      new Set(visitedRoutes)
+    );
+    var path2 = findPathBetweenStations(
+      transferStations[1],
+      destStation,
+      new Set(visitedRoutes)
+    );
+    if (path1 && path2) {
+      return path1.concat(path2.slice(1));
+    }
+  }
+
+  // Try multi-hop: find any station on startStation's route that can transfer to destStation's route
+  var route1Stations = stations.filter(function (s) {
+    return s.route_id === startStation.route_id;
+  });
+
+  for (var i = 0; i < route1Stations.length; i++) {
+    var intermediate = route1Stations[i];
+    var intermediateTransfer = findTransferPoint(intermediate, destStation);
+    if (
+      intermediateTransfer &&
+      intermediateTransfer[0].id === intermediate.id
+    ) {
+      var path1 = findPathBetweenStations(
+        startStation,
+        intermediate,
+        new Set(visitedRoutes)
+      );
+      var path2 = findPathBetweenStations(
+        intermediateTransfer[1],
+        destStation,
+        new Set(visitedRoutes)
+      );
+      if (path1 && path2) {
+        return path1.concat(path2);
+      }
+    }
+  }
+
+  return null;
+}
+
+function findTransferPoint(station1, station2) {
+  var route1Stations = stations.filter(function (s) {
+    return s.route_id === station1.route_id;
+  });
+  var route2Stations = stations.filter(function (s) {
+    return s.route_id === station2.route_id;
+  });
+
+  // First, try to find stations with the same name (case-insensitive, ignore extra spaces)
+  for (var i = 0; i < route1Stations.length; i++) {
+    for (var j = 0; j < route2Stations.length; j++) {
+      var name1 = (route1Stations[i].name || "")
+        .toUpperCase()
+        .trim()
+        .replace(/\s+/g, " ");
+      var name2 = (route2Stations[j].name || "")
+        .toUpperCase()
+        .trim()
+        .replace(/\s+/g, " ");
+      if (name1 === name2 && name1 !== "") {
+        return [route1Stations[i], route2Stations[j]];
+      }
+    }
+  }
+
+  // If no exact name match, look for nearby stations (within 500m)
+  var bestMatch = null;
+  var bestDist = Infinity;
+  for (var i = 0; i < route1Stations.length; i++) {
+    for (var j = 0; j < route2Stations.length; j++) {
+      var dist = distance(
+        route1Stations[i].lat,
+        route1Stations[i].lng,
+        route2Stations[j].lat,
+        route2Stations[j].lng
+      );
+      if (dist < 500 && dist < bestDist) {
+        bestDist = dist;
+        bestMatch = [route1Stations[i], route2Stations[j]];
+      }
+    }
+  }
+
+  if (bestMatch) {
+    console.log(
+      "Found transfer point:",
+      bestMatch[0].name,
+      "->",
+      bestMatch[1].name,
+      "distance:",
+      bestDist.toFixed(0),
+      "m"
+    );
+    return bestMatch;
+  }
+
+  console.log(
+    "No transfer point found between",
+    station1.route_id,
+    "and",
+    station2.route_id
+  );
+  return null;
+}
+
+function fetchWalkingRoute(start, dest) {
+  var url =
+    "https://router.project-osrm.org/route/v1/walking/" +
+    start.lng +
+    "," +
+    start.lat +
+    ";" +
+    dest.lng +
+    "," +
+    dest.lat +
+    "?overview=full&geometries=geojson";
+  return fetch(url)
+    .then(function (res) {
+      if (!res.ok) throw new Error("OSRM failed");
+      return res.json();
+    })
+    .then(function (data) {
+      if (data.code !== "Ok" || !data.routes || !data.routes.length)
+        throw new Error("No route found");
+      return data.routes[0].geometry;
+    });
+}
+
+function drawPublicTransportRoute(
+  start,
+  dest,
+  startStation,
+  destStation,
+  path
+) {
+  // Remove all previous route elements
+  if (startMarker) startMarker.remove();
+  if (destMarker) destMarker.remove();
+  if (routeLayer) routeLayer.remove();
+  stationMarkers.forEach(function (m) {
+    m.remove();
+  });
+  routeLayers.forEach(function (layer) {
+    layer.remove();
+  });
+  stationMarkers = [];
+  routeLayers = [];
+
+  startMarker = L.circleMarker([start.lat, start.lng], {
+    radius: 10,
+    color: "#ff0000",
+    fillColor: "#ff0000",
+    fillOpacity: 1,
+    weight: 3,
+  })
+    .addTo(map)
+    .bindPopup("Start: " + start.name);
+
+  destMarker = L.circleMarker([dest.lat, dest.lng], {
+    radius: 10,
+    color: "#00ff00",
+    fillColor: "#00ff00",
+    fillOpacity: 1,
+    weight: 3,
+  })
+    .addTo(map)
+    .bindPopup("Destination: " + dest.name);
+
+  // Only draw walking route if start is not already at the station (within 50m)
+  var startDist = distance(
+    start.lat,
+    start.lng,
+    startStation.lat,
+    startStation.lng
+  );
+  if (startDist > 50) {
+    fetchWalkingRoute(start, {
+      lat: startStation.lat,
+      lng: startStation.lng,
+    }).then(function (walkingGeom) {
+      var walkingLayer = L.geoJSON(walkingGeom, {
+        style: { color: "#888", weight: 3, opacity: 0.6, dashArray: "5, 5" },
+      }).addTo(map);
+      routeLayers.push(walkingLayer);
+    });
+  }
+
+  if (path && path.length > 1) {
+    for (var i = 0; i < path.length - 1; i++) {
+      var s1 = path[i];
+      var s2 = path[i + 1];
+      var routeColor = getRouteColor(s1.route_id);
+      var transitLine = L.polyline(
+        [
+          [s1.lat, s1.lng],
+          [s2.lat, s2.lng],
+        ],
+        {
+          color: routeColor,
+          weight: 6,
+          opacity: 0.8,
+        }
+      ).addTo(map);
+      routeLayers.push(transitLine);
+
+      var marker = L.circleMarker([s1.lat, s1.lng], {
+        radius: 8,
+        color: routeColor,
+        fillColor: routeColor,
+        fillOpacity: 0.9,
+        weight: 2,
+      })
+        .addTo(map)
+        .bindPopup(
+          s1.name +
+            "<br>Crowd: " +
+            (s1.crowd * 100).toFixed(1) +
+            "%<br>Route: " +
+            s1.route_id
+        );
+      stationMarkers.push(marker);
+    }
+    var lastStation = path[path.length - 1];
+    var marker = L.circleMarker([lastStation.lat, lastStation.lng], {
+      radius: 8,
+      color: getRouteColor(lastStation.route_id),
+      fillColor: getRouteColor(lastStation.route_id),
+      fillOpacity: 0.9,
+      weight: 2,
+    })
+      .addTo(map)
+      .bindPopup(
+        lastStation.name +
+          "<br>Crowd: " +
+          (lastStation.crowd * 100).toFixed(1) +
+          "%<br>Route: " +
+          lastStation.route_id
+      );
+    stationMarkers.push(marker);
+  }
+
+  // Only draw walking route if destination is not already at the station (within 50m)
+  var destDist = distance(dest.lat, dest.lng, destStation.lat, destStation.lng);
+  if (destDist > 50) {
+    fetchWalkingRoute(
+      {
+        lat: destStation.lat,
+        lng: destStation.lng,
+      },
+      dest
+    ).then(function (walkingGeom) {
+      var walkingLayer = L.geoJSON(walkingGeom, {
+        style: { color: "#888", weight: 3, opacity: 0.6, dashArray: "5, 5" },
+      }).addTo(map);
+      routeLayers.push(walkingLayer);
+    });
+  }
+
+  var bounds = L.latLngBounds([start.lat, start.lng], [dest.lat, dest.lng]);
+  stationMarkers.forEach(function (m) {
+    bounds.extend(m.getLatLng());
+  });
+  map.fitBounds(bounds, { padding: [40, 40] });
+}
+
+function getRouteColor(routeId) {
+  var colors = {
+    AG: "#ff0000",
+    PH: "#ff0000",
+    KJ: "#00ff00",
+    MR: "#0000ff",
+    MRT: "#ff00ff",
+    PYL: "#ffff00",
+    BRT: "#00ffff",
+  };
+  return colors[routeId] || "#0078ff";
+}
+
+function handleRoute() {
+  var startText = startInput.value.trim();
+  var destText = destInput.value.trim();
+  if (!startText || !destText) {
+    alert("Enter both start and destination.");
+    return;
+  }
+
+  if (stations.length === 0) {
+    alert("Station data not loaded yet. Please wait...");
+    return;
+  }
+
+  routeBtn.disabled = true;
+  routeBtn.textContent = "Routing...";
+
+  Promise.all([geocode(startText), geocode(destText)])
+    .then(function (results) {
+      var start = results[0];
+      var dest = results[1];
+      if (!start || !dest) throw new Error("Location not found");
+
+      // Use the station directly if it was matched, otherwise find nearest
+      var startStation =
+        start.station || findNearestStation(start.lat, start.lng);
+      var destStation = dest.station || findNearestStation(dest.lat, dest.lng);
+
+      if (!startStation || !destStation) {
+        throw new Error("No nearby stations found");
+      }
+
+      // If station was matched directly, use station coordinates as the location
+      if (start.station) {
+        start.lat = startStation.lat;
+        start.lng = startStation.lng;
+        start.name = startStation.name;
+      }
+      if (dest.station) {
+        dest.lat = destStation.lat;
+        dest.lng = destStation.lng;
+        dest.name = destStation.name;
+      }
+
+      console.log("Start station:", startStation.name, startStation.route_id);
+      console.log("Dest station:", destStation.name, destStation.route_id);
+
+      var path = findPathBetweenStations(startStation, destStation);
+      if (!path) {
+        throw new Error(
+          "No transit route found between " +
+            startStation.name +
+            " (" +
+            startStation.route_id +
+            ") and " +
+            destStation.name +
+            " (" +
+            destStation.route_id +
+            "). Try different locations or check if a transfer is available."
+        );
+      }
+
+      drawPublicTransportRoute(start, dest, startStation, destStation, path);
+    })
+    .catch(function (err) {
+      console.error(err);
+      alert(err.message || "Routing failed");
+    })
+    .finally(function () {
+      routeBtn.disabled = false;
+      routeBtn.textContent = "Go";
+    });
+}
+
+routeBtn.addEventListener("click", handleRoute);
+startInput.addEventListener("keydown", function (evt) {
+  if (evt.key === "Enter") handleRoute();
+});
+destInput.addEventListener("keydown", function (evt) {
+  if (evt.key === "Enter") handleRoute();
+});
+
+fetch("datasets/station.json")
+  .then(function (res) {
+    if (!res.ok) throw new Error("Failed to load station data");
+    return res.json();
+  })
+  .then(function (stationData) {
+    stations = stationData;
+    stations.forEach(function (station) {
+      if (typeof station.lat !== "number" || typeof station.lng !== "number")
+        return;
+      var crowdLevel = station.crowd || 0;
+      var color = getRouteColor(station.route_id);
+      var radius = 4 + Math.min(crowdLevel * 10, 6);
+      L.circleMarker([station.lat, station.lng], {
+        radius: radius,
+        color: color,
+        fillColor: color,
+        fillOpacity: 0.6,
+        weight: 2,
+      })
+        .addTo(map)
+        .bindPopup(
+          (station.name || station.id) +
+            "<br>Crowd: " +
+            (crowdLevel * 100).toFixed(1) +
+            "%<br>Route: " +
+            (station.route_id || "N/A")
+        );
+    });
+  })
+  .catch(function (err) {
+    console.error(err);
+  });
