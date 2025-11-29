@@ -1,5 +1,5 @@
-// input.js (SUPER SIMPLIFIED)
-// Handles routing and insights
+// input.js (WITH FARE CALCULATION)
+// Handles routing and insights with fare information
 
 (function () {
     var startInput = document.getElementById("start");
@@ -20,8 +20,28 @@
       return (meters / 1000).toFixed(2) + " km";
     }
   
-    function buildInsights(path, startWalkDist, destWalkDist) {
+    function buildInsights(path, startWalkDist, destWalkDist, fareBreakdown) {
       var insights = [];
+      
+      // Fare summary at the top
+      if (fareBreakdown && fareBreakdown.total > 0) {
+        insights.push("💰 Total Fare: RM " + fareBreakdown.total.toFixed(2));
+        
+        // Fare breakdown
+        var breakdownParts = [];
+        if (fareBreakdown.startTransport > 0) {
+          breakdownParts.push(fareBreakdown.startType + " (Start): RM " + fareBreakdown.startTransport.toFixed(2));
+        }
+        if (fareBreakdown.transit > 0) {
+          breakdownParts.push("Transit: RM " + fareBreakdown.transit.toFixed(2));
+        }
+        if (fareBreakdown.endTransport > 0) {
+          breakdownParts.push(fareBreakdown.endType + " (End): RM " + fareBreakdown.endTransport.toFixed(2));
+        }
+        if (breakdownParts.length > 0) {
+          insights.push("   → " + breakdownParts.join(" + "));
+        }
+      }
       
       if (path && path.length) {
         var travelMinutes = (path.length - 1) * 3;
@@ -146,17 +166,18 @@
         var startObj = { lat: startResult.coords.lat, lng: startResult.coords.lng, name: startText };
         var destObj = { lat: destResult.coords.lat, lng: destResult.coords.lng, name: destText };
   
-        window.drawPublicTransportRoute(startObj, destObj, startStation, destStation, path);
+        var fareBreakdown = window.drawPublicTransportRoute(startObj, destObj, startStation, destStation, path);
   
         var startWalkDist = window.distance(startObj.lat, startObj.lng, startStation.lat, startStation.lng);
         var destWalkDist = window.distance(destObj.lat, destObj.lng, destStation.lat, destStation.lng);
   
         var summary = "Route displayed";
-        if (startWalkDist > 50) summary += " • Walk " + (startWalkDist / 1000).toFixed(2) + "km to start";
-        if (destWalkDist > 50) summary += " • Walk " + (destWalkDist / 1000).toFixed(2) + "km from end";
+        if (fareBreakdown && fareBreakdown.total > 0) {
+          summary += " • Total Fare: RM " + fareBreakdown.total.toFixed(2);
+        }
         setInfo(summary);
   
-        var insights = buildInsights(path, startWalkDist, destWalkDist);
+        var insights = buildInsights(path, startWalkDist, destWalkDist, fareBreakdown);
         renderInsights(insights);
   
       } catch (err) {
