@@ -1,5 +1,5 @@
-// map-init.js (FIXED)
-// Pure map initialization only. No routing, no station loading.
+// map-init.js (UPDATED)
+// Pure map initialization with flag icons
 
 // Create map
 window.map = L.map("map").setView([3.139, 101.686], 12);
@@ -26,28 +26,20 @@ window.getRouteColor = function (routeId) {
   return ROUTE_COLORS[routeId] || "#54c1ff";
 };
 
-// GRAB ICON - Define globally for route-display.js
-window.grabIcon = L.divIcon({
-  className: "marker marker--grab",
-  html: '<div style="background: #FF6B35; color: white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; box-shadow: 0 0 8px rgba(255, 107, 53, 0.8);">G</div>',
-  iconSize: [32, 32],
-  iconAnchor: [16, 16],
-});
-
-// Start marker icon
+// Start marker icon (flag emoji)
 window.startIcon = L.divIcon({
   className: "marker marker--start",
   html: '<span class="marker-arrow"></span>',
   iconSize: [32, 32],
-  iconAnchor: [16, 16],
+  iconAnchor: [16, 32],
 });
 
-// Destination marker icon
+// Destination marker icon (checkered flag emoji)
 window.destIcon = L.divIcon({
   className: "marker marker--dest",
   html: '<span class="marker-arrow"></span>',
   iconSize: [32, 32],
-  iconAnchor: [16, 16],
+  iconAnchor: [16, 32],
 });
 
 // Global placeholders

@@ -87,24 +87,25 @@
   }
   
   .marker-arrow {
-    width: 0;
-    height: 0;
-    border-left: 12px solid transparent;
-    border-right: 12px solid transparent;
-    border-bottom: 22px solid currentColor;
-    position: absolute;
-    top: 4px;
-    left: 4px;
-    filter: drop-shadow(0 0 8px rgba(84, 193, 255, 0.6));
+    font-size: 32px;
+    line-height: 1;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4));
   }
   
-  .marker--start .marker-arrow {
-    color: #20f7a4;
+  .marker--start .marker-arrow::before {
+    content: "🚩";
   }
   
-  .marker--dest .marker-arrow {
-    color: #ff639d;
-    transform: rotate(180deg);
+  .marker--dest .marker-arrow::before {
+    content: "🏁";
+  }
+  
+  .marker--dest {
+    z-index: 1000 !important;
+  }
+  
+  .marker--start {
+    z-index: 1000 !important;
   }
   
   .controls {
@@ -304,6 +305,15 @@
     font-size: 0.9rem;
   }
   
+  .route-station {
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .route-station:hover {
+    stroke-width: 5 !important;
+  }
+  
   @media (max-width: 768px) {
     body {
       padding: 1.5rem;
@@ -338,4 +348,412 @@
   .leaflet-interactive.grab-route {
     stroke: #FF6B35 !important;
     stroke-dasharray: none !important;
+  }
+  
+  /* Transit icon marker styling */
+  .transit-icon-marker {
+    background: transparent !important;
+    border: none !important;
+  }
+  
+  .transit-icon-circle {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, rgba(84, 193, 255, 0.2), rgba(108, 92, 231, 0.2));
+    border: 3px solid var(--accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 4px 12px rgba(84, 193, 255, 0.4);
+    animation: transitIconPulse 3s ease-in-out infinite;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    backdrop-filter: blur(4px);
+  }
+  
+  .transit-icon-circle:hover {
+    transform: scale(1.15);
+  }
+  
+  @keyframes transitIconPulse {
+    0%, 100% {
+      box-shadow: 0 4px 12px rgba(84, 193, 255, 0.4);
+      border-color: var(--accent);
+    }
+    
+    50% {
+      box-shadow: 0 6px 20px rgba(84, 193, 255, 0.7);
+      border-color: var(--accent-strong);
+    }
+  }
+  
+  /* Transit card popup styling */
+  .transit-card-popup .leaflet-popup-content-wrapper {
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+  }
+  
+  .transit-card-popup .leaflet-popup-tip {
+    display: none;
+  }
+  
+  .transit-card-popup .leaflet-popup-content {
+    margin: 0;
+  }
+  
+  .transit-card-content {
+    background: linear-gradient(135deg, rgba(84, 193, 255, 0.95), rgba(108, 92, 231, 0.95));
+    border-radius: 14px;
+    padding: 12px 16px;
+    box-shadow: 0 8px 24px rgba(84, 193, 255, 0.6),
+                0 0 0 3px rgba(255, 255, 255, 0.15);
+    min-width: 200px;
+    pointer-events: auto;
+    backdrop-filter: blur(10px);
+  }
+  
+  .transit-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  }
+  
+  .transit-icon {
+    font-size: 18px;
+  }
+  
+  .transit-title {
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #fff;
+  }
+  
+  .transit-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  
+  .transit-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .transit-label {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.85);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  
+  .transit-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+  }
+  
+  /* Walking icon marker styling */
+  .walking-icon-marker {
+    background: transparent !important;
+    border: none !important;
+  }
+  
+  .walking-icon-circle {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, rgba(84, 193, 255, 0.2), rgba(108, 92, 231, 0.2));
+    border: 3px solid #54c1ff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 4px 12px rgba(84, 193, 255, 0.4);
+    animation: walkingIconPulse 2s ease-in-out infinite;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    backdrop-filter: blur(4px);
+  }
+  
+  .walking-icon-circle:hover {
+    transform: scale(1.15);
+  }
+  
+  @keyframes walkingIconPulse {
+    0%, 100% {
+      box-shadow: 0 4px 12px rgba(84, 193, 255, 0.4);
+      border-color: #54c1ff;
+    }
+    
+    50% {
+      box-shadow: 0 6px 20px rgba(84, 193, 255, 0.7);
+      border-color: #6c5ce7;
+    }
+  }
+  
+  /* Walking card popup styling */
+  .walking-card-popup .leaflet-popup-content-wrapper {
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+  }
+  
+  .walking-card-popup .leaflet-popup-tip {
+    display: none;
+  }
+  
+  .walking-card-popup .leaflet-popup-content {
+    margin: 0;
+  }
+  
+  .walking-card-content {
+    background: linear-gradient(135deg, #54c1ff, #6c5ce7);
+    border-radius: 14px;
+    padding: 12px 16px;
+    box-shadow: 0 8px 24px rgba(84, 193, 255, 0.6),
+                0 0 0 3px rgba(255, 255, 255, 0.15);
+    min-width: 180px;
+    pointer-events: auto;
+  }
+  
+  .walking-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .walking-icon {
+    font-size: 18px;
+  }
+  
+  .walking-title {
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #fff;
+  }
+  
+  .walking-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  
+  .walking-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .walking-label {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.8);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  
+  .walking-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+  }
+  
+  /* Station card popup styling */
+  .station-card-popup .leaflet-popup-content-wrapper {
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+  }
+  
+  .station-card-popup .leaflet-popup-tip {
+    display: none;
+  }
+  
+  .station-card-popup .leaflet-popup-content {
+    margin: 0;
+  }
+  
+  .station-card-content {
+    background: linear-gradient(135deg, rgba(15, 28, 63, 0.98), rgba(12, 18, 42, 0.98));
+    border-radius: 14px;
+    padding: 12px 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6),
+                0 0 0 2px rgba(255, 255, 255, 0.1);
+    min-width: 200px;
+    pointer-events: auto;
+  }
+  
+  .station-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  }
+  
+  .station-icon {
+    font-size: 20px;
+  }
+  
+  .station-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-strong);
+    flex: 1;
+  }
+  
+  .station-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  
+  .station-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .station-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  
+  .station-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  
+  /* Grab icon marker styling */
+  .grab-icon-marker {
+    background: transparent !important;
+    border: none !important;
+  }
+  
+  .grab-icon-circle {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, rgba(255, 107, 53, 0.2), rgba(255, 133, 85, 0.2));
+    border: 3px solid #FF6B35;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+    animation: grabIconPulse 2s ease-in-out infinite;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    backdrop-filter: blur(4px);
+  }
+  
+  .grab-icon-circle:hover {
+    transform: scale(1.15);
+  }
+  
+  @keyframes grabIconPulse {
+    0%, 100% {
+      box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+      border-color: #FF6B35;
+    }
+    
+    50% {
+      box-shadow: 0 6px 20px rgba(255, 107, 53, 0.7);
+      border-color: #FF8555;
+    }
+  }
+  
+  /* Grab card popup styling */
+  .grab-card-popup .leaflet-popup-content-wrapper {
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+  }
+  
+  .grab-card-popup .leaflet-popup-tip {
+    display: none;
+  }
+  
+  .grab-card-popup .leaflet-popup-content {
+    margin: 0;
+  }
+  
+  /* Grab info card styling */
+  .grab-info-card {
+    background: transparent !important;
+    border: none !important;
+    z-index: 2000 !important;
+  }
+  
+  .grab-card-content {
+    background: linear-gradient(135deg, #FF6B35, #FF8555);
+    border-radius: 14px;
+    padding: 12px 16px;
+    box-shadow: 0 8px 24px rgba(255, 107, 53, 0.6),
+                0 0 0 3px rgba(255, 255, 255, 0.15);
+    min-width: 180px;
+    pointer-events: auto;
+  }
+  
+  .grab-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .grab-icon {
+    font-size: 18px;
+  }
+  
+  .grab-title {
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #fff;
+  }
+  
+  .grab-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  
+  .grab-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .grab-label {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.8);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  
+  .grab-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
   }
