@@ -1,7 +1,7 @@
 // routing.js
 // Path finding, transfers, walking route fetch, helpers
 // Now crowd-aware: prefers less crowded routes during peak hours
-// Exposes globally: findNearestStation, findPathBetweenStations, findTransferPoint, fetchWalkingRoute, resolveQueryToNearestStation
+// Exposes globally: findNearestStation, findPathBetweenStations, findTransferPoint, fetchWalkingRoute, resolveQueryToNearestStation, calculateFare
 
 (function () {
   var stationGraph = new Map();
@@ -365,5 +365,72 @@
       console.error("resolveQueryToNearestStation error", err);
       return null;
     }
+  };
+
+  // --- FARE CALCULATION LOGIC (UPDATED) ---
+
+  // Fare configuration based on your rules
+  var FARE_CONFIG = {
+    // Flat fare per station for all transit types
+    'TRANSIT_PER_STATION': 0.30,
+    // Grab fare components
+    'GRAB': {
+      baseFare: 2.00,         // Assumed base fare
+      perKmRate: 0.65,        // Assumed rate per km
+      perMinuteRate: 0.30,    // Assumed rate per minute of travel
+      bookingFee: 1.00,       // Assumed fixed booking fee
+      surgeMultiplier: 1.0     // Default surge, can be changed later
+    }
+  };
+
+  // Main fare calculation function (Updated)
+  window.calculateFare = function(path, startWalkDist, destWalkDist) {
+    var breakdown = {
+      total: 0,
+      transit: 0,
+      startTransport: 0,
+      endTransport: 0,
+      startType: 'Walk',
+      endType: 'Walk'
+    };
+
+    // --- Calculate Grab fare for the start of the journey ---
+    if (startWalkDist > 300) {
+      var distKm = startWalkDist / 1000;
+      // Assume average speed of 30 km/h in traffic to estimate time
+      var estimatedMinutes = (distKm / 30) * 60; 
+      
+      var grab = FARE_CONFIG.GRAB;
+      breakdown.startTransport = (grab.baseFare + (distKm * grab.perKmRate) + (estimatedMinutes * grab.perMinuteRate) + grab.bookingFee) * grab.surgeMultiplier;
+      breakdown.startType = 'Grab';
+    }
+
+    // --- Calculate Transit fare ---
+    if (path && path.length > 1) {
+      // The number of stops is the number of stations in the path minus 1
+      var stops = path.length - 1;
+      breakdown.transit = stops * FARE_CONFIG.TRANSIT_PER_STATION;
+    }
+
+    // --- Calculate Grab fare for the end of the journey ---
+    if (destWalkDist > 300) {
+      var distKm = destWalkDist / 1000;
+      var estimatedMinutes = (distKm / 30) * 60;
+
+      var grab = FARE_CONFIG.GRAB;
+      breakdown.endTransport = (grab.baseFare + (distKm * grab.perKmRate) + (estimatedMinutes * grab.perMinuteRate) + grab.bookingFee) * grab.surgeMultiplier;
+      breakdown.endType = 'Grab';
+    }
+
+    // --- Calculate total ---
+    breakdown.total = breakdown.transit + breakdown.startTransport + breakdown.endTransport;
+    
+    // Round to 2 decimal places
+    breakdown.total = Math.round(breakdown.total * 100) / 100;
+    breakdown.startTransport = Math.round(breakdown.startTransport * 100) / 100;
+    breakdown.endTransport = Math.round(breakdown.endTransport * 100) / 100;
+    breakdown.transit = Math.round(breakdown.transit * 100) / 100;
+
+    return breakdown;
   };
 })();

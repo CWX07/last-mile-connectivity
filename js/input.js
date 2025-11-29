@@ -1,5 +1,5 @@
-// input.js (WITH FARE CALCULATION)
-// Handles routing and insights with fare information
+// input.js (FINAL VERSION)
+// Handles routing and insights with fare information and route summary
 
 (function () {
     var startInput = document.getElementById("start");
@@ -18,6 +18,81 @@
       if (!meters) return "0 km";
       if (meters < 1000) return meters.toFixed(0) + " m";
       return (meters / 1000).toFixed(2) + " km";
+    }
+  
+    // --- FUNCTION: Build Route Summary ---
+    function buildRouteSummary(start, dest, startStation, destStation, path, startWalkDist, destWalkDist, fareBreakdown) {
+      var summaryContent = document.getElementById("routeSummaryContent");
+      var summaryEmpty = document.getElementById("summaryEmpty");
+      if (!summaryContent) return;
+
+      // Hide the empty message when building the summary
+      if (summaryEmpty) {
+        summaryEmpty.classList.add("hidden");
+      }
+
+      var segments = [];
+      var totalDistance = 0;
+      var totalTime = 0;
+
+      // Start Segment
+      if (startWalkDist > 300) {
+        segments.push({ icon: '🚗', text: '<strong>Grab</strong> from ' + (start.name || 'Start') + ' to ' + (startStation.name || 'Station') });
+        totalTime += 15; // Rough estimate
+        totalDistance += startWalkDist;
+      } else {
+        segments.push({ icon: '🚶', text: '<strong>Walk</strong> from ' + (start.name || 'Start') + ' to ' + (startStation.name || 'Station') });
+        totalTime += Math.ceil(startWalkDist / 80); // 5km/h
+        totalDistance += startWalkDist;
+      }
+
+      // Transit Segment
+      if (path && path.length > 1) {
+        var transitDistance = 0;
+        for (var i = 0; i < path.length - 1; i++) {
+            transitDistance += window.distance(path[i].lat, path[i].lng, path[i+1].lat, path[i+1].lng);
+        }
+        segments.push({ icon: '🚇', text: '<strong>Transit</strong> from ' + (startStation.name || 'Station') + ' to ' + (destStation.name || 'Station') });
+        totalTime += (path.length - 1) * 3; // 3 min per stop
+        totalDistance += transitDistance;
+      }
+
+      // End Segment
+      if (destWalkDist > 300) {
+        segments.push({ icon: '🚗', text: '<strong>Grab</strong> from ' + (destStation.name || 'Station') + ' to ' + (dest.name || 'Destination') });
+        totalTime += 15; // Rough estimate
+        totalDistance += destWalkDist;
+      } else {
+        segments.push({ icon: '🚶', text: '<strong>Walk</strong> from ' + (destStation.name || 'Station') + ' to ' + (dest.name || 'Destination') });
+        totalTime += Math.ceil(destWalkDist / 80); // 5km/h
+        totalDistance += destWalkDist;
+      }
+
+      // Build HTML
+      var html = '';
+      segments.forEach(function(seg) {
+        html += '<div class="summary-item">' +
+                  '<span class="summary-icon">' + seg.icon + '</span>' +
+                  '<span class="summary-text">' + seg.text + '</span>' +
+                '</div>';
+      });
+      
+      html += '<div class="summary-stats">' +
+                '<div class="summary-stat">' +
+                  '<span class="summary-stat-label">Total Distance</span>' +
+                  '<span class="summary-stat-value">' + (totalDistance / 1000).toFixed(2) + ' km</span>' +
+                '</div>' +
+                '<div class="summary-stat">' +
+                  '<span class="summary-stat-label">Est. Time</span>' +
+                  '<span class="summary-stat-value">~' + totalTime + ' min</span>' +
+                '</div>' +
+                '<div class="summary-stat">' +
+                  '<span class="summary-stat-label">Total Price</span>' +
+                  '<span class="summary-stat-value">RM ' + (fareBreakdown ? fareBreakdown.total.toFixed(2) : 'N/A') + '</span>' +
+                '</div>' +
+              '</div>';
+
+      summaryContent.innerHTML = html;
     }
   
     function buildInsights(path, startWalkDist, destWalkDist, fareBreakdown) {
@@ -69,15 +144,15 @@
         }
       }
   
-      // Mention walks with Grab suggestion
+      // Mention walks with Grab suggestion (Updated text)
       if (startWalkDist > 300) {
-        insights.push("Start: " + formatKm(startWalkDist) + " walk. Consider booking a Grab (shown in orange).");
+        insights.push("Start: " + formatKm(startWalkDist) + " walk. Consider booking a Grab (shown in purple).");
       } else if (startWalkDist > 200) {
         insights.push("Walk about " + formatKm(startWalkDist) + " to reach your start station.");
       }
       
       if (destWalkDist > 300) {
-        insights.push("Destination: " + formatKm(destWalkDist) + " walk. Consider booking a Grab (shown in orange).");
+        insights.push("Destination: " + formatKm(destWalkDist) + " walk. Consider booking a Grab (shown in purple).");
       } else if (destWalkDist > 200) {
         insights.push("Walk about " + formatKm(destWalkDist) + " after exiting.");
       }
@@ -176,6 +251,9 @@
           summary += " • Total Fare: RM " + fareBreakdown.total.toFixed(2);
         }
         setInfo(summary);
+
+        // --- Build the route summary ---
+        buildRouteSummary(startObj, destObj, startStation, destStation, path, startWalkDist, destWalkDist, fareBreakdown);
   
         var insights = buildInsights(path, startWalkDist, destWalkDist, fareBreakdown);
         renderInsights(insights);
@@ -184,6 +262,12 @@
         console.error("[Input] Error:", err);
         setInfo("Routing failed");
         renderInsights([]);
+
+        // --- Show the empty message on error ---
+        var summaryEmpty = document.getElementById("summaryEmpty");
+        if (summaryEmpty) {
+          summaryEmpty.classList.remove("hidden");
+        }
       } finally {
         routeBtn.disabled = false;
         routeBtn.textContent = "Go";

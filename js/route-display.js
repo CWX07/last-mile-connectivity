@@ -1,4 +1,4 @@
-// route-display.js (SIMPLIFIED)
+// route-display.js (FINAL VERSION)
 // visualization helpers: drawPublicTransportRoute(start,dest,startStation,destStation,path)
 
 (function () {
@@ -39,8 +39,10 @@
     });
   }
 
-  // Create Transit line card
-  function createTransitCard(routeId, stationCount) {
+  // In js/route-display.js, find and replace the createTransitCard function with this:
+
+  // Create Transit line card (Corrected to show "Stops (Distance)")
+  function createTransitCard(routeId, stationCount, fare, distanceKm) {
     var routeNames = {
       'AG': 'LRT Ampang Line',
       'PH': 'LRT Putra Heights Line',
@@ -52,6 +54,8 @@
     };
     
     var estimatedTime = (stationCount - 1) * 3; // 3 min per stop
+    var fareText = fare ? "RM " + fare.toFixed(2) : "N/A";
+    var distanceText = distanceKm ? (distanceKm).toFixed(1) + " km" : "N/A";
     
     return '<div class="transit-card-content">' +
               '<div class="transit-card-header">' +
@@ -60,8 +64,12 @@
               '</div>' +
               '<div class="transit-card-body">' +
                 '<div class="transit-stat">' +
+                  '<span class="transit-label">Est. Fare</span>' +
+                  '<span class="transit-value">' + fareText + '</span>' +
+                '</div>' +
+                '<div class="transit-stat">' +
                   '<span class="transit-label">Stops</span>' +
-                  '<span class="transit-value">' + (stationCount - 1) + ' stops</span>' +
+                  '<span class="transit-value">' + (stationCount - 1) + ' (' + distanceText + ')</span>' +
                 '</div>' +
                 '<div class="transit-stat">' +
                   '<span class="transit-label">Est. Time</span>' +
@@ -84,9 +92,10 @@
   // Create Grab info card popup (shows on hover)
   function createGrabCard(from, to, distanceMeters) {
     var distKm = (distanceMeters / 1000).toFixed(2);
-    var estimatedTime = Math.ceil(distanceMeters / 500 * 3); // ~30km/h avg in traffic
+    // Assume average speed of 30 km/h in traffic to estimate time
+    var estimatedMinutes = Math.ceil((distKm / 30) * 60);
     
-    console.log("[Grab Card] Creating card:", distKm + "km,", estimatedTime + "min");
+    console.log("[Grab Card] Creating card:", distKm + "km,", estimatedMinutes + "min");
     
     return '<div class="grab-card-content">' +
               '<div class="grab-card-header">' +
@@ -100,7 +109,7 @@
                 '</div>' +
                 '<div class="grab-stat">' +
                   '<span class="grab-label">Est. Time</span>' +
-                  '<span class="grab-value">~' + estimatedTime + ' min</span>' +
+                  '<span class="grab-value">~' + estimatedMinutes + ' min</span>' +
                 '</div>' +
               '</div>' +
             '</div>';
@@ -173,6 +182,10 @@
     var destDist = window.distance(dest.lat, dest.lng, destStation.lat, destStation.lng);
 
     console.log("[Route Display] Start walk:", startDist.toFixed(0) + "m, Dest walk:", destDist.toFixed(0) + "m");
+
+    // *** ADDITION 1: Calculate fare early ***
+    var fareBreakdown = window.calculateFare(path, startDist, destDist);
+    console.log("[Route Display] Fare Breakdown:", fareBreakdown);
 
     // Draw START segment
     if (startDist > 50) {
@@ -373,6 +386,13 @@
             // Calculate midpoint of segment
             var midIdx = Math.floor(segment.length / 2);
             var midStation = segment[midIdx];
+
+            // --- Calculate distance for this segment ---
+            var segmentDistanceMeters = 0;
+            for (var i = 0; i < segment.length - 1; i++) {
+              segmentDistanceMeters += window.distance(segment[i].lat, segment[i].lng, segment[i+1].lat, segment[i+1].lng);
+            }
+            var segmentDistanceKm = segmentDistanceMeters / 1000;
             
             var transitMarker = L.marker([midStation.lat, midStation.lng], {
               icon: createTransitIconMarker(routeId),
@@ -380,8 +400,8 @@
               zIndexOffset: 1500
             }).addTo(map);
             
-            // Bind popup with transit card
-            transitMarker.bindPopup(createTransitCard(routeId, segment.length), {
+            // Bind popup with transit card (now includes distance)
+            transitMarker.bindPopup(createTransitCard(routeId, segment.length, fareBreakdown.transit, segmentDistanceKm), {
               className: 'transit-card-popup',
               closeButton: false,
               autoClose: false,
@@ -554,5 +574,8 @@
       bounds.extend(m.getLatLng());
     });
     map.fitBounds(bounds, { padding: [40, 40] });
+
+    // *** ADDITION 3: Return the fare breakdown at the end ***
+    return fareBreakdown;
   };
 })();
