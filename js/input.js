@@ -1,5 +1,5 @@
-// input.js (FINAL VERSION)
-// Handles routing and insights with fare information and route summary
+// input.js (FINAL VERSION with AI Integration)
+// Handles routing and insights with fare information and AI-powered travel tips
 
 (function () {
     var startInput = document.getElementById("start");
@@ -246,17 +246,34 @@
         var startWalkDist = window.distance(startObj.lat, startObj.lng, startStation.lat, startStation.lng);
         var destWalkDist = window.distance(destObj.lat, destObj.lng, destStation.lat, destStation.lng);
   
+        // --- Build the route summary ---
+        buildRouteSummary(startObj, destObj, startStation, destStation, path, startWalkDist, destWalkDist, fareBreakdown);
+
+        // --- Generate AI-powered insights ---
+        setInfo("Generating AI-powered insights...");
+        var insights = buildInsights(path, startWalkDist, destWalkDist, fareBreakdown);
+
+        if (typeof window.generateAIInsights === 'function') {
+            try {
+                const aiInsight = await window.generateAIInsights(path, startWalkDist, destWalkDist, fareBreakdown);
+                if (aiInsight) {
+                    // Add the AI's tip as the first, most prominent insight
+                    insights.unshift(aiInsight);
+                }
+            } catch (error) {
+                console.error("Failed to generate AI insight:", error);
+                // Optionally, add a fallback message to insights
+                insights.unshift("AI-powered tips are currently unavailable.");
+            }
+        }
+
+        renderInsights(insights);
+  
         var summary = "Route displayed";
         if (fareBreakdown && fareBreakdown.total > 0) {
           summary += " • Total Fare: RM " + fareBreakdown.total.toFixed(2);
         }
         setInfo(summary);
-
-        // --- Build the route summary ---
-        buildRouteSummary(startObj, destObj, startStation, destStation, path, startWalkDist, destWalkDist, fareBreakdown);
-  
-        var insights = buildInsights(path, startWalkDist, destWalkDist, fareBreakdown);
-        renderInsights(insights);
   
       } catch (err) {
         console.error("[Input] Error:", err);
